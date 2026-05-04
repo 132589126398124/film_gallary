@@ -43,7 +43,9 @@
       },
       "is_bw": false,
       "warning": null,
-      "photos": []
+      "photos": [
+        "001.jpg"
+      ]
     },
     {
       "id": "colorplus",
