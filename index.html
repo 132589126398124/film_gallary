@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Seoul Film Gallery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link rel="stylesheet" href="style.css" />
+
+  <script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+  <script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+</head>
+<body>
+
+<div class="page-wrap">
+
+  <!-- HEADER -->
+  <header class="site-header">
+    <div class="header-handle">@i.think.i.left.the.stove.on</div>
+    <p class="header-desc">
+      ソウル在住のアマチュアフィルム写真家。<br />
+      フィルムの種類ごとにサンプル写真を掲載しています。
+    </p>
+    <a class="header-ig" href="https://www.instagram.com/i.think.i.left.the.stove.on/" target="_blank" rel="noopener">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+        <circle cx="12" cy="12" r="4"></circle>
+        <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"></circle>
+      </svg>
+      @i.think.i.left.the.stove.on
+    </a>
+    <hr class="header-divider" />
+  </header>
+
+  <!-- NOTICE BANNER -->
+  <div class="notice-banner">
+    <span class="notice-icon">📷</span>
+    <div class="notice-body">
+      <div class="notice-title">サンプル掲載状況について</div>
+      <div class="notice-text">現在、風景・街スナップのサンプルを順次追加中です。しばらくお待ちください。</div>
+    </div>
+  </div>
+
+  <!-- GALLERY (React) -->
+  <div id="gallery-root"></div>
+
+  <!-- FOOTER -->
+  <footer class="site-footer">
+    <hr class="header-divider" style="margin-bottom: 4px;" />
+    <a class="cta-button" href="https://www.instagram.com/i.think.i.left.the.stove.on/" target="_blank" rel="noopener">
+      フィルム撮影について問い合わせる →
+    </a>
+    <a class="footer-ig" href="https://www.instagram.com/i.think.i.left.the.stove.on/" target="_blank" rel="noopener">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="2" width="20" height="20" rx="5" ry="5"></rect>
+        <circle cx="12" cy="12" r="4"></circle>
+        <circle cx="17.5" cy="6.5" r="1" fill="currentColor" stroke="none"></circle>
+      </svg>
+      @i.think.i.left.the.stove.on をフォローする
+    </a>
+    <p class="footer-legal">© i.think.i.left.the.stove.on · Seoul Film Photographer</p>
+  </footer>
+
+</div>
+
+<script type="text/babel" src="main.js" data-presets="react"></script>
+
+</body>
+</html>

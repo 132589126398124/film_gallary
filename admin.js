@@ -1,0 +1,485 @@
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ── Helpers ──────────────────────────────────────────────
+
+const PRICE_OPTIONS = [0, 5000, 10000];
+
+function getPassword() {
+  return sessionStorage.getItem('adminPassword') || '';
+}
+
+// ── Toast ────────────────────────────────────────────────
+
+function useToast() {
+  const [toasts, setToasts] = useState([]);
+
+  const showToast = useCallback((message, type = 'success') => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 3000);
+  }, []);
+
+  const ToastContainer = () => (
+    <div className="toast-container">
+      {toasts.map((t) => (
+        <div key={t.id} className={`toast ${t.type}`}>
+          {t.message}
+        </div>
+      ))}
+    </div>
+  );
+
+  return { showToast, ToastContainer };
+}
+
+// ── Login screen ─────────────────────────────────────────
+
+function LoginScreen({ onLogin }) {
+  const [pw, setPw] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (!pw.trim()) return;
+    setLoading(true);
+    setError('');
+    // Verify password by attempting a config-write preflight
+    try {
+      const res = await fetch('/api/config-read');
+      if (!res.ok) throw new Error();
+      // Password is verified on first real API call; store it and proceed
+      sessionStorage.setItem('adminPassword', pw);
+      onLogin(pw);
+    } catch {
+      setError('サーバーに接続できませんでした');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="login-wrap">
+      <form className="login-card" onSubmit={handleSubmit}>
+        <h1>管理者ログイン</h1>
+        <input
+          type="password"
+          placeholder="パスワード"
+          value={pw}
+          onChange={(e) => setPw(e.target.value)}
+          autoFocus
+        />
+        {error && <div className="login-error">{error}</div>}
+        <button type="submit" className="btn-primary" disabled={loading}>
+          {loading ? 'ログイン中...' : 'ログイン'}
+        </button>
+      </form>
+    </div>
+  );
+}
+
+// ── Thumbnail grid ───────────────────────────────────────
+
+function ThumbnailGrid({ film, onDelete }) {
+  if (film.photos.length === 0) {
+    return <div className="thumb-empty">まだ写真がありません</div>;
+  }
+
+  return (
+    <div className="thumb-grid">
+      {film.photos.map((filename, i) => (
+        <div className="thumb-item" key={filename}>
+          <img
+            src={`/images/${film.id}/${filename}`}
+            alt={`${film.name_jp} ${i + 1}`}
+          />
+          <button
+            className="thumb-delete"
+            onClick={() => onDelete(film.id, filename)}
+            title="削除"
+          >
+            ×
+          </button>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Upload zone ──────────────────────────────────────────
+
+function UploadZone({ filmId, onUpload, disabled }) {
+  const [dragOver, setDragOver] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const inputRef = useRef(null);
+
+  async function uploadFile(file) {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      alert('画像ファイルのみアップロード可能です');
+      return;
+    }
+
+    setUploading(true);
+    setProgress(30);
+
+    const fd = new FormData();
+    fd.append('password', getPassword());
+    fd.append('filmId', filmId);
+    fd.append('file', file);
+
+    try {
+      setProgress(60);
+      const res = await fetch('/api/upload', { method: 'POST', body: fd });
+      setProgress(90);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'アップロード失敗');
+      setProgress(100);
+      await onUpload(data.filename);
+    } catch (e) {
+      alert(`アップロードエラー: ${e.message}`);
+    } finally {
+      setTimeout(() => {
+        setUploading(false);
+        setProgress(0);
+      }, 400);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  }
+
+  function handleFiles(files) {
+    if (files.length === 0) return;
+    uploadFile(files[0]);
+  }
+
+  return (
+    <div>
+      <div
+        className={`upload-zone${dragOver ? ' drag-over' : ''}`}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => {
+          e.preventDefault();
+          setDragOver(false);
+          if (!disabled && !uploading) handleFiles(e.dataTransfer.files);
+        }}
+      >
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          disabled={disabled || uploading}
+          onChange={(e) => handleFiles(e.target.files)}
+        />
+        <div className="upload-zone-icon">📁</div>
+        <div className="upload-zone-text">
+          <strong>タップして選択</strong> またはドロップ
+        </div>
+        <div className="upload-zone-hint">JPG / PNG / WebP · 長辺2000px以下推奨</div>
+      </div>
+      {uploading && (
+        <div className="upload-progress">
+          <div className="upload-progress-bar">
+            <div className="upload-progress-fill" style={{ width: `${progress}%` }} />
+          </div>
+          <div className="upload-progress-text">アップロード中...</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Film settings form ───────────────────────────────────
+
+function FilmSettings({ film, onChange }) {
+  const hasWarning = film.warning !== null && film.warning !== undefined;
+  const [warningOn, setWarningOn] = useState(hasWarning);
+
+  function handleWarningToggle() {
+    const next = !warningOn;
+    setWarningOn(next);
+    onChange(film.id, 'warning', next ? (film.warning || '') : null);
+  }
+
+  return (
+    <div className="settings-form">
+      <div className="form-field">
+        <label className="form-label">キャッチコピー</label>
+        <textarea
+          className="form-textarea"
+          rows={2}
+          value={film.catchcopy}
+          onChange={(e) => onChange(film.id, 'catchcopy', e.target.value)}
+        />
+      </div>
+      <div className="form-field">
+        <label className="form-label">追加料金 (₩)</label>
+        <input
+          type="number"
+          className="form-input"
+          value={film.price_extra}
+          min={0}
+          step={1000}
+          onChange={(e) => onChange(film.id, 'price_extra', parseInt(e.target.value, 10) || 0)}
+        />
+      </div>
+      <div className="form-field">
+        <div className="form-row">
+          <button
+            type="button"
+            className={`form-toggle${warningOn ? ' on' : ''}`}
+            onClick={handleWarningToggle}
+          />
+          <span className="form-toggle-label">注意文を表示</span>
+        </div>
+        {warningOn && (
+          <textarea
+            className="form-textarea"
+            rows={2}
+            style={{ marginTop: 8 }}
+            placeholder="注意文を入力..."
+            value={film.warning || ''}
+            onChange={(e) => onChange(film.id, 'warning', e.target.value)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Film admin card (accordion) ──────────────────────────
+
+function FilmAdminCard({ film, onDelete, onUpload, onSettingsChange }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="film-admin-card">
+      <div className="film-admin-header" onClick={() => setOpen((o) => !o)}>
+        <div>
+          <div className="film-admin-name">{film.name_jp}</div>
+          <div className="film-admin-meta">
+            {film.name_en} · {film.photos.length}枚
+          </div>
+        </div>
+        <svg
+          className={`film-admin-chevron${open ? ' open' : ''}`}
+          width="18"
+          height="18"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </div>
+      <div className={`film-admin-body${open ? ' open' : ''}`}>
+        <div>
+          <div className="admin-section-label">写真</div>
+          <ThumbnailGrid film={film} onDelete={onDelete} />
+        </div>
+        <UploadZone filmId={film.id} onUpload={(filename) => onUpload(film.id, filename)} />
+        <div>
+          <div className="admin-section-label">設定</div>
+          <FilmSettings film={film} onChange={onSettingsChange} />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main admin screen ────────────────────────────────────
+
+function AdminScreen({ initialConfig, password, onLogout, showToast }) {
+  const [config, setConfig] = useState(initialConfig);
+  const [isDirty, setIsDirty] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  // Warn before leaving with unsaved changes
+  useEffect(() => {
+    const handler = (e) => {
+      if (isDirty) e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [isDirty]);
+
+  async function saveConfig(cfg) {
+    setSaving(true);
+    try {
+      const res = await fetch('/api/config-write', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password, config: cfg }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || '保存失敗');
+      showToast('保存しました');
+      setIsDirty(false);
+    } catch (e) {
+      showToast(`エラー: ${e.message}`, 'error');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  // Upload: add filename to photos, immediately save config
+  async function handleUpload(filmId, filename) {
+    const next = {
+      ...config,
+      films: config.films.map((f) =>
+        f.id === filmId ? { ...f, photos: [...f.photos, filename] } : f
+      ),
+    };
+    setConfig(next);
+    showToast(`${filename} をアップロードしました`);
+    await saveConfig(next);
+  }
+
+  // Delete: remove from photos array, immediately save config
+  async function handleDelete(filmId, filename) {
+    if (!confirm(`「${filename}」を削除しますか？`)) return;
+    const next = {
+      ...config,
+      films: config.films.map((f) =>
+        f.id === filmId ? { ...f, photos: f.photos.filter((p) => p !== filename) } : f
+      ),
+    };
+    setConfig(next);
+    showToast(`${filename} を削除しました`);
+    await saveConfig(next);
+  }
+
+  // Settings change: mark dirty (explicit save required)
+  function handleSettingsChange(filmId, field, value) {
+    setConfig((prev) => ({
+      ...prev,
+      films: prev.films.map((f) =>
+        f.id === filmId ? { ...f, [field]: value } : f
+      ),
+    }));
+    setIsDirty(true);
+  }
+
+  // Group films by price for display
+  const groups = [
+    { price: 0, label: '追加料金なし', films: config.films.filter((f) => f.price_extra === 0) },
+    { price: 5000, label: '₩5,000', films: config.films.filter((f) => f.price_extra === 5000) },
+    { price: 10000, label: '₩10,000', films: config.films.filter((f) => f.price_extra === 10000) },
+  ];
+
+  return (
+    <>
+      <div
+        className="admin-header"
+        style={{ position: 'sticky', top: 0, zIndex: 100 }}
+      >
+        <div className="admin-wrap" style={{ padding: '0 16px', maxWidth: 700, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+          <span className="admin-header-title">管理画面</span>
+          <button className="btn-logout" onClick={onLogout}>ログアウト</button>
+        </div>
+      </div>
+
+      <div className="admin-wrap">
+        {groups.map(({ price, label, films }) =>
+          films.length === 0 ? null : (
+            <div key={price}>
+              <div className="admin-section-label">{label}</div>
+              {films.map((film) => (
+                <FilmAdminCard
+                  key={film.id}
+                  film={film}
+                  onDelete={handleDelete}
+                  onUpload={handleUpload}
+                  onSettingsChange={handleSettingsChange}
+                />
+              ))}
+            </div>
+          )
+        )}
+
+        {isDirty && (
+          <button
+            className="btn-save"
+            onClick={() => saveConfig(config)}
+            disabled={saving}
+          >
+            {saving ? '保存中...' : '設定を保存する'}
+          </button>
+        )}
+      </div>
+    </>
+  );
+}
+
+// ── App root ─────────────────────────────────────────────
+
+function App() {
+  const [password, setPassword] = useState(getPassword);
+  const [config, setConfig] = useState(null);
+  const [loadError, setLoadError] = useState(null);
+  const { showToast, ToastContainer } = useToast();
+
+  // Load config when authenticated
+  useEffect(() => {
+    if (!password) return;
+    fetch('/api/config-read')
+      .then((r) => {
+        if (!r.ok) throw new Error('config 読み込み失敗');
+        return r.json();
+      })
+      .then(setConfig)
+      .catch((e) => {
+        setLoadError(e.message);
+        setPassword('');
+        sessionStorage.removeItem('adminPassword');
+      });
+  }, [password]);
+
+  function handleLogin(pw) {
+    setPassword(pw);
+  }
+
+  function handleLogout() {
+    sessionStorage.removeItem('adminPassword');
+    setPassword('');
+    setConfig(null);
+  }
+
+  if (!password) {
+    return (
+      <>
+        <LoginScreen onLogin={handleLogin} />
+        <ToastContainer />
+      </>
+    );
+  }
+
+  if (!config) {
+    return (
+      <div className="loading-wrap">
+        <div className="spinner" />
+        読み込み中...
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <AdminScreen
+        initialConfig={config}
+        password={password}
+        onLogout={handleLogout}
+        showToast={showToast}
+      />
+      <ToastContainer />
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
