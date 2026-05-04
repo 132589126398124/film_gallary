@@ -154,7 +154,15 @@
       },
       "is_bw": true,
       "warning": null,
-      "photos": []
+      "photos": [
+        "018.jpg",
+        "019.jpg",
+        "020.jpg",
+        "021.jpg",
+        "022.jpg",
+        "023.jpg",
+        "024.jpg"
+      ]
     },
     {
       "id": "portra400",
