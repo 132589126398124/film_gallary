@@ -156,63 +156,63 @@ function UploadZone({ filmId, onUpload, disabled }) {
   const [statusText, setStatusText] = useState('');
   const inputRef = useRef(null);
 
-  async function uploadFile(file) {
-    if (!file) return;
-    if (!file.type.startsWith('image/')) {
-      alert('画像ファイルのみアップロード可能です');
-      return;
-    }
-
-    setUploading(true);
-    setProgress(10);
+  async function uploadSingle(file, current, total) {
+    const prefix = total > 1 ? `${current}/${total} ` : '';
 
     let fileToUpload = file;
-    try {
-      if (file.size > MAX_UPLOAD_BYTES) {
-        setStatusText('圧縮中...');
-        setProgress(20);
-        const compressed = await compressImage(file);
-        fileToUpload = new File([compressed], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
-        setProgress(50);
-      }
-
-      setStatusText('アップロード中...');
-      const fd = new FormData();
-      fd.append('password', getPassword());
-      fd.append('filmId', filmId);
-      fd.append('file', fileToUpload);
-
-      setProgress(70);
-      const res = await fetch('/api/upload', { method: 'POST', body: fd });
-      setProgress(90);
-
-      const ct = res.headers.get('content-type') || '';
-      let data = {};
-      if (ct.includes('application/json')) {
-        data = await res.json();
-      } else if (!res.ok) {
-        if (res.status === 413) throw new Error('圧縮後もファイルサイズが大きすぎます');
-        throw new Error(`サーバーエラー (${res.status})`);
-      }
-
-      if (!res.ok) throw new Error(data.error || 'アップロード失敗');
-      setProgress(100);
-      await onUpload(data.filename);
-    } catch (e) {
-      alert(`アップロードエラー: ${e.message}`);
-    } finally {
-      setTimeout(() => {
-        setUploading(false);
-        setProgress(0);
-        setStatusText('');
-      }, 400);
-      if (inputRef.current) inputRef.current.value = '';
+    if (file.size > MAX_UPLOAD_BYTES) {
+      setStatusText(`${prefix}圧縮中...`);
+      const compressed = await compressImage(file);
+      fileToUpload = new File([compressed], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
     }
+
+    setStatusText(`${prefix}アップロード中...`);
+    const fd = new FormData();
+    fd.append('password', getPassword());
+    fd.append('filmId', filmId);
+    fd.append('file', fileToUpload);
+
+    const res = await fetch('/api/upload', { method: 'POST', body: fd });
+    const ct = res.headers.get('content-type') || '';
+    let data = {};
+    if (ct.includes('application/json')) {
+      data = await res.json();
+    } else if (!res.ok) {
+      if (res.status === 413) throw new Error('圧縮後もファイルサイズが大きすぎます');
+      throw new Error(`サーバーエラー (${res.status})`);
+    }
+    if (!res.ok) throw new Error(data.error || 'アップロード失敗');
+    await onUpload(data.filename);
   }
 
-  function handleFiles(files) {
+  async function handleFiles(fileList) {
+    const files = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
     if (files.length === 0) return;
-    uploadFile(files[0]);
+
+    setUploading(true);
+    setProgress(0);
+    const errors = [];
+
+    for (let i = 0; i < files.length; i++) {
+      setProgress(Math.round(((i) / files.length) * 100));
+      try {
+        await uploadSingle(files[i], i + 1, files.length);
+      } catch (e) {
+        errors.push(`${files[i].name}: ${e.message}`);
+      }
+    }
+
+    setProgress(100);
+    setTimeout(() => {
+      setUploading(false);
+      setProgress(0);
+      setStatusText('');
+    }, 400);
+    if (inputRef.current) inputRef.current.value = '';
+
+    if (errors.length > 0) {
+      alert(`アップロードエラー:\n${errors.join('\n')}`);
+    }
   }
 
   return (
@@ -231,6 +231,7 @@ function UploadZone({ filmId, onUpload, disabled }) {
           ref={inputRef}
           type="file"
           accept="image/*"
+          multiple
           disabled={disabled || uploading}
           onChange={(e) => handleFiles(e.target.files)}
         />
@@ -238,7 +239,7 @@ function UploadZone({ filmId, onUpload, disabled }) {
         <div className="upload-zone-text">
           <strong>タップして選択</strong> またはドロップ
         </div>
-        <div className="upload-zone-hint">JPG / PNG / WebP · 大きなファイルは自動圧縮されます</div>
+        <div className="upload-zone-hint">複数選択可 · JPG / PNG / WebP · 大きなファイルは自動圧縮</div>
       </div>
       {uploading && (
         <div className="upload-progress">
