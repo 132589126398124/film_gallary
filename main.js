@@ -1,4 +1,4 @@
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useCallback } = React;
 
 // Camera icon SVG
 const CameraIcon = () => (
@@ -52,7 +52,51 @@ function PriceBadge({ price }) {
   return <span className={`price-badge ${cls}`}>+₩{price.toLocaleString()}</span>;
 }
 
-function FilmCard({ film }) {
+function FilmModal({ film, onClose }) {
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      window.removeEventListener('keydown', onKey);
+    };
+  }, [onClose]);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <div className="modal-title">{film.name_jp}</div>
+            <div className="modal-subtitle">{film.name_en}</div>
+          </div>
+          <button className="modal-close" onClick={onClose} aria-label="閉じる">✕</button>
+        </div>
+        <div className="modal-body">
+          {film.photos.length === 0 ? (
+            <div className="modal-empty">作例準備中</div>
+          ) : (
+            <div className="modal-photo-grid">
+              {film.photos.map((filename, i) => (
+                <div className="modal-photo" key={i}>
+                  <img
+                    src={`/images/${film.id}/${filename}`}
+                    alt={`${film.name_jp} ${i + 1}`}
+                    loading="lazy"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function FilmCard({ film, onSelect }) {
   const cardRef = useRef(null);
 
   return (
@@ -60,6 +104,8 @@ function FilmCard({ film }) {
       className={`film-card${film.is_bw ? ' mono-film' : ''}`}
       data-card
       ref={cardRef}
+      onClick={() => film.photos.length > 0 && onSelect(film)}
+      style={film.photos.length > 0 ? { cursor: 'pointer' } : {}}
     >
       <PhotoGrid film={film} />
       <div className="film-body">
@@ -79,6 +125,9 @@ function FilmCard({ film }) {
             <strong>⚠ 注意：</strong>{film.warning}
           </div>
         )}
+        {film.photos.length > 0 && (
+          <div className="film-more-hint">全{film.photos.length}枚を見る →</div>
+        )}
       </div>
     </div>
   );
@@ -90,7 +139,7 @@ const SECTION_LABELS = {
   10000: '₩10,000',
 };
 
-function FilmSection({ price, films }) {
+function FilmSection({ price, films, onSelect }) {
   return (
     <section>
       <div className="section-label">
@@ -99,7 +148,7 @@ function FilmSection({ price, films }) {
       </div>
       <div className="film-grid">
         {films.map((film) => (
-          <FilmCard key={film.id} film={film} />
+          <FilmCard key={film.id} film={film} onSelect={onSelect} />
         ))}
       </div>
     </section>
@@ -109,6 +158,9 @@ function FilmSection({ price, films }) {
 function Gallery() {
   const [films, setFilms] = useState([]);
   const [error, setError] = useState(null);
+  const [selectedFilm, setSelectedFilm] = useState(null);
+  const handleSelect = useCallback((film) => setSelectedFilm(film), []);
+  const handleClose = useCallback(() => setSelectedFilm(null), []);
 
   useEffect(() => {
     fetch('/gallery-config.json')
@@ -173,9 +225,10 @@ function Gallery() {
     <>
       {[0, 5000, 10000].map((price) =>
         groups[price].length > 0 ? (
-          <FilmSection key={price} price={price} films={groups[price]} />
+          <FilmSection key={price} price={price} films={groups[price]} onSelect={handleSelect} />
         ) : null
       )}
+      {selectedFilm && <FilmModal film={selectedFilm} onClose={handleClose} />}
     </>
   );
 }
