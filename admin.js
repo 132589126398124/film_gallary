@@ -1,4 +1,4 @@
-const { useState, useEffect, useRef, useCallback } = React;
+﻿const { useState, useEffect, useRef, useCallback } = React;
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -110,10 +110,50 @@ function ThumbnailGrid({ film, onDelete }) {
 
 // ── Upload zone ──────────────────────────────────────────
 
+const MAX_UPLOAD_BYTES = 4.3 * 1024 * 1024;
+
+async function compressImage(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      const MAX_DIM = 4000;
+      let { width, height } = img;
+      if (width > MAX_DIM || height > MAX_DIM) {
+        const scale = Math.min(MAX_DIM / width, MAX_DIM / height);
+        width = Math.round(width * scale);
+        height = Math.round(height * scale);
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      const qualities = [0.95, 0.88, 0.80, 0.70, 0.60, 0.50, 0.40];
+      let idx = 0;
+      function tryNext() {
+        if (idx >= qualities.length) {
+          canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.40);
+          return;
+        }
+        const q = qualities[idx++];
+        canvas.toBlob((blob) => {
+          if (blob && blob.size <= MAX_UPLOAD_BYTES) resolve(blob);
+          else tryNext();
+        }, 'image/jpeg', q);
+      }
+      tryNext();
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); resolve(file); };
+    img.src = url;
+  });
+}
+
 function UploadZone({ filmId, onUpload, disabled }) {
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [statusText, setStatusText] = useState('');
   const inputRef = useRef(null);
 
   async function uploadFile(file) {
@@ -124,18 +164,37 @@ function UploadZone({ filmId, onUpload, disabled }) {
     }
 
     setUploading(true);
-    setProgress(30);
+    setProgress(10);
 
-    const fd = new FormData();
-    fd.append('password', getPassword());
-    fd.append('filmId', filmId);
-    fd.append('file', file);
-
+    let fileToUpload = file;
     try {
-      setProgress(60);
+      if (file.size > MAX_UPLOAD_BYTES) {
+        setStatusText('圧縮中...');
+        setProgress(20);
+        const compressed = await compressImage(file);
+        fileToUpload = new File([compressed], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
+        setProgress(50);
+      }
+
+      setStatusText('アップロード中...');
+      const fd = new FormData();
+      fd.append('password', getPassword());
+      fd.append('filmId', filmId);
+      fd.append('file', fileToUpload);
+
+      setProgress(70);
       const res = await fetch('/api/upload', { method: 'POST', body: fd });
       setProgress(90);
-      const data = await res.json();
+
+      const ct = res.headers.get('content-type') || '';
+      let data = {};
+      if (ct.includes('application/json')) {
+        data = await res.json();
+      } else if (!res.ok) {
+        if (res.status === 413) throw new Error('圧縮後もファイルサイズが大きすぎます');
+        throw new Error(`サーバーエラー (${res.status})`);
+      }
+
       if (!res.ok) throw new Error(data.error || 'アップロード失敗');
       setProgress(100);
       await onUpload(data.filename);
@@ -145,6 +204,7 @@ function UploadZone({ filmId, onUpload, disabled }) {
       setTimeout(() => {
         setUploading(false);
         setProgress(0);
+        setStatusText('');
       }, 400);
       if (inputRef.current) inputRef.current.value = '';
     }
@@ -178,14 +238,14 @@ function UploadZone({ filmId, onUpload, disabled }) {
         <div className="upload-zone-text">
           <strong>タップして選択</strong> またはドロップ
         </div>
-        <div className="upload-zone-hint">JPG / PNG / WebP · 長辺2000px以下推奨</div>
+        <div className="upload-zone-hint">JPG / PNG / WebP · 大きなファイルは自動圧縮されます</div>
       </div>
       {uploading && (
         <div className="upload-progress">
           <div className="upload-progress-bar">
             <div className="upload-progress-fill" style={{ width: `${progress}%` }} />
           </div>
-          <div className="upload-progress-text">アップロード中...</div>
+          <div className="upload-progress-text">{statusText || 'アップロード中...'}</div>
         </div>
       )}
     </div>
@@ -483,3 +543,4 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+
