@@ -6,10 +6,16 @@
       "name_en": "Vision3 250D",
       "price_extra": 0,
       "catchcopy": "自然な発色と細かい粒子。昼間の屋外撮影に最適。",
-      "tags": { "color": "自然な色調", "grain": "粒子細かめ", "scene": "日中屋外" },
+      "tags": {
+        "color": "自然な色調",
+        "grain": "粒子細かめ",
+        "scene": "日中屋外"
+      },
       "is_bw": false,
       "warning": null,
-      "photos": []
+      "photos": [
+        "001.jpg"
+      ]
     },
     {
       "id": "500t",
@@ -17,7 +23,11 @@
       "name_en": "Vision3 500T",
       "price_extra": 0,
       "catchcopy": "シネマライクな色調。曇天・室内でも安定した発色。",
-      "tags": { "color": "シネマティック", "grain": "高感度", "scene": "曇天・室内" },
+      "tags": {
+        "color": "シネマティック",
+        "grain": "高感度",
+        "scene": "曇天・室内"
+      },
       "is_bw": false,
       "warning": null,
       "photos": []
@@ -28,7 +38,11 @@
       "name_en": "Kodak ColorPlus 200",
       "price_extra": 0,
       "catchcopy": "温かみのあるクラシックな発色。フィルムらしさを楽しみたい方に。",
-      "tags": { "color": "温かい色調", "grain": "粒子やや粗め", "scene": "晴天屋外" },
+      "tags": {
+        "color": "温かい色調",
+        "grain": "粒子やや粗め",
+        "scene": "晴天屋外"
+      },
       "is_bw": false,
       "warning": null,
       "photos": []
@@ -39,7 +53,11 @@
       "name_en": "Kodak Gold 200",
       "price_extra": 0,
       "catchcopy": "ナチュラルで温かい色調。日常スナップに馴染むスタンダード。",
-      "tags": { "color": "ナチュラル", "grain": "標準粒子", "scene": "日中屋外" },
+      "tags": {
+        "color": "ナチュラル",
+        "grain": "標準粒子",
+        "scene": "日中屋外"
+      },
       "is_bw": false,
       "warning": null,
       "photos": []
@@ -50,7 +68,11 @@
       "name_en": "Kodak UltraMax 400",
       "price_extra": 5000,
       "catchcopy": "鮮やかな発色と汎用性。様々な光の条件に対応。",
-      "tags": { "color": "鮮やか", "grain": "標準粒子", "scene": "日中〜曇天" },
+      "tags": {
+        "color": "鮮やか",
+        "grain": "標準粒子",
+        "scene": "日中〜曇天"
+      },
       "is_bw": false,
       "warning": null,
       "photos": []
@@ -61,7 +83,11 @@
       "name_en": "Ilford HP5 Plus",
       "price_extra": 5000,
       "catchcopy": "柔らかいコントラストの白黒。増感にも強い万能モノクロ。",
-      "tags": { "color": "白黒", "grain": "柔らかいトーン", "scene": "幅広いシーン" },
+      "tags": {
+        "color": "白黒",
+        "grain": "柔らかいトーン",
+        "scene": "幅広いシーン"
+      },
       "is_bw": true,
       "warning": null,
       "photos": []
@@ -72,7 +98,11 @@
       "name_en": "Kodak Double-X",
       "price_extra": 5000,
       "catchcopy": "力強いコントラストとドラマチックな白黒描写。",
-      "tags": { "color": "白黒", "grain": "高コントラスト", "scene": "日中屋外" },
+      "tags": {
+        "color": "白黒",
+        "grain": "高コントラスト",
+        "scene": "日中屋外"
+      },
       "is_bw": true,
       "warning": null,
       "photos": []
@@ -83,7 +113,11 @@
       "name_en": "Kodak Portra 400",
       "price_extra": 10000,
       "catchcopy": "プロ向けポートレートフィルム。美しい肌色と極細粒子。",
-      "tags": { "color": "肌色美麗", "grain": "粒子非常に細かい", "scene": "ポートレート向け" },
+      "tags": {
+        "color": "肌色美麗",
+        "grain": "粒子非常に細かい",
+        "scene": "ポートレート向け"
+      },
       "is_bw": false,
       "warning": null,
       "photos": []
@@ -94,7 +128,11 @@
       "name_en": "Cinestill 800T",
       "price_extra": 10000,
       "catchcopy": "幻想的なハレーションと夜景の雰囲気。シネマティックな世界観。",
-      "tags": { "color": "ハレーション", "grain": "高感度", "scene": "夜間・室内" },
+      "tags": {
+        "color": "ハレーション",
+        "grain": "高感度",
+        "scene": "夜間・室内"
+      },
       "is_bw": false,
       "warning": null,
       "photos": []
