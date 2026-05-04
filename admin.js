@@ -182,7 +182,7 @@ function UploadZone({ filmId, onUpload, disabled }) {
       throw new Error(`サーバーエラー (${res.status})`);
     }
     if (!res.ok) throw new Error(data.error || 'アップロード失敗');
-    await onUpload(data.filename);
+    return data.filename;
   }
 
   async function handleFiles(fileList) {
@@ -191,12 +191,14 @@ function UploadZone({ filmId, onUpload, disabled }) {
 
     setUploading(true);
     setProgress(0);
+    const uploaded = [];
     const errors = [];
 
     for (let i = 0; i < files.length; i++) {
-      setProgress(Math.round(((i) / files.length) * 100));
+      setProgress(Math.round((i / files.length) * 100));
       try {
-        await uploadSingle(files[i], i + 1, files.length);
+        const filename = await uploadSingle(files[i], i + 1, files.length);
+        uploaded.push(filename);
       } catch (e) {
         errors.push(`${files[i].name}: ${e.message}`);
       }
@@ -210,9 +212,8 @@ function UploadZone({ filmId, onUpload, disabled }) {
     }, 400);
     if (inputRef.current) inputRef.current.value = '';
 
-    if (errors.length > 0) {
-      alert(`アップロードエラー:\n${errors.join('\n')}`);
-    }
+    if (uploaded.length > 0) await onUpload(uploaded);
+    if (errors.length > 0) alert(`アップロードエラー:\n${errors.join('\n')}`);
   }
 
   return (
@@ -344,7 +345,7 @@ function FilmAdminCard({ film, onDelete, onUpload, onSettingsChange }) {
           <div className="admin-section-label">写真</div>
           <ThumbnailGrid film={film} onDelete={onDelete} />
         </div>
-        <UploadZone filmId={film.id} onUpload={(filename) => onUpload(film.id, filename)} />
+        <UploadZone filmId={film.id} onUpload={(filenames) => onUpload(film.id, filenames)} />
         <div>
           <div className="admin-section-label">設定</div>
           <FilmSettings film={film} onChange={onSettingsChange} />
@@ -389,17 +390,21 @@ function AdminScreen({ initialConfig, password, onLogout, showToast }) {
     }
   }
 
-  // Upload: add filename to photos, immediately save config
-  async function handleUpload(filmId, filename) {
-    const next = {
-      ...config,
-      films: config.films.map((f) =>
-        f.id === filmId ? { ...f, photos: [...f.photos, filename] } : f
-      ),
-    };
-    setConfig(next);
-    showToast(`${filename} をアップロードしました`);
-    await saveConfig(next);
+  // Upload: add filenames to photos, save once
+  async function handleUpload(filmId, filenames) {
+    const list = Array.isArray(filenames) ? filenames : [filenames];
+    setConfig((prev) => {
+      const next = {
+        ...prev,
+        films: prev.films.map((f) =>
+          f.id === filmId ? { ...f, photos: [...f.photos, ...list] } : f
+        ),
+      };
+      saveConfig(next);
+      return next;
+    });
+    const msg = list.length > 1 ? `${list.length}枚をアップロードしました` : `${list[0]} をアップロードしました`;
+    showToast(msg);
   }
 
   // Delete: remove from photos array, immediately save config
