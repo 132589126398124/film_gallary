@@ -82,15 +82,52 @@ function LoginScreen({ onLogin }) {
 
 // ── Thumbnail grid ───────────────────────────────────────
 
-function ThumbnailGrid({ film, onDelete }) {
+function ThumbnailGrid({ film, onDelete, onReorder }) {
+  const dragIdx = useRef(null);
+  const [overIdx, setOverIdx] = useState(null);
+
   if (film.photos.length === 0) {
     return <div className="thumb-empty">まだ写真がありません</div>;
+  }
+
+  function handleDragStart(i) {
+    dragIdx.current = i;
+  }
+
+  function handleDragOver(e, i) {
+    e.preventDefault();
+    setOverIdx(i);
+  }
+
+  function handleDrop(i) {
+    const from = dragIdx.current;
+    if (from === null || from === i) { setOverIdx(null); return; }
+    const next = [...film.photos];
+    const [moved] = next.splice(from, 1);
+    next.splice(i, 0, moved);
+    dragIdx.current = null;
+    setOverIdx(null);
+    onReorder(film.id, next);
+  }
+
+  function handleDragEnd() {
+    dragIdx.current = null;
+    setOverIdx(null);
   }
 
   return (
     <div className="thumb-grid">
       {film.photos.map((filename, i) => (
-        <div className="thumb-item" key={filename}>
+        <div
+          className={`thumb-item${overIdx === i ? ' drag-over' : ''}`}
+          key={filename}
+          draggable
+          onDragStart={() => handleDragStart(i)}
+          onDragOver={(e) => handleDragOver(e, i)}
+          onDrop={() => handleDrop(i)}
+          onDragEnd={handleDragEnd}
+          onDragLeave={() => setOverIdx(null)}
+        >
           <img
             src={`/images/${film.id}/${filename}`}
             alt={`${film.name_jp} ${i + 1}`}
@@ -102,6 +139,7 @@ function ThumbnailGrid({ film, onDelete }) {
           >
             ×
           </button>
+          <div className="thumb-drag-handle">⠿</div>
         </div>
       ))}
     </div>
@@ -314,7 +352,7 @@ function FilmSettings({ film, onChange }) {
 
 // ── Film admin card (accordion) ──────────────────────────
 
-function FilmAdminCard({ film, onDelete, onUpload, onSettingsChange }) {
+function FilmAdminCard({ film, onDelete, onUpload, onReorder, onSettingsChange }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -343,7 +381,7 @@ function FilmAdminCard({ film, onDelete, onUpload, onSettingsChange }) {
       <div className={`film-admin-body${open ? ' open' : ''}`}>
         <div>
           <div className="admin-section-label">写真</div>
-          <ThumbnailGrid film={film} onDelete={onDelete} />
+          <ThumbnailGrid film={film} onDelete={onDelete} onReorder={onReorder} />
         </div>
         <UploadZone filmId={film.id} onUpload={(filenames) => onUpload(film.id, filenames)} />
         <div>
@@ -407,6 +445,20 @@ function AdminScreen({ initialConfig, password, onLogout, showToast }) {
     showToast(msg);
   }
 
+  // Reorder: update photos array order, immediately save config
+  async function handleReorder(filmId, newPhotos) {
+    setConfig((prev) => {
+      const next = {
+        ...prev,
+        films: prev.films.map((f) =>
+          f.id === filmId ? { ...f, photos: newPhotos } : f
+        ),
+      };
+      saveConfig(next);
+      return next;
+    });
+  }
+
   // Delete: remove from photos array, immediately save config
   async function handleDelete(filmId, filename) {
     if (!confirm(`「${filename}」を削除しますか？`)) return;
@@ -462,6 +514,7 @@ function AdminScreen({ initialConfig, password, onLogout, showToast }) {
                   film={film}
                   onDelete={handleDelete}
                   onUpload={handleUpload}
+                  onReorder={handleReorder}
                   onSettingsChange={handleSettingsChange}
                 />
               ))}
