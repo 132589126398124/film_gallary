@@ -52,47 +52,84 @@ function PriceBadge({ price }) {
   return <span className={`price-badge ${cls}`}>+₩{price.toLocaleString()}</span>;
 }
 
+function Lightbox({ src, alt, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
+  return (
+    <div className="lightbox-overlay" onClick={onClose}>
+      <button className="lightbox-close" onClick={onClose} aria-label="閉じる">✕</button>
+      <img
+        className="lightbox-img"
+        src={src}
+        alt={alt}
+        onClick={(e) => e.stopPropagation()}
+      />
+    </div>
+  );
+}
+
 function FilmModal({ film, onClose }) {
+  const [lightboxSrc, setLightboxSrc] = useState(null);
+  const [lightboxAlt, setLightboxAlt] = useState('');
+
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e) => {
+      if (e.key === 'Escape') {
+        if (lightboxSrc) setLightboxSrc(null);
+        else onClose();
+      }
+    };
     window.addEventListener('keydown', onKey);
     return () => {
       document.body.style.overflow = prev;
       window.removeEventListener('keydown', onKey);
     };
-  }, [onClose]);
+  }, [onClose, lightboxSrc]);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <div>
-            <div className="modal-title">{film.name_jp}</div>
-            <div className="modal-subtitle">{film.name_en}</div>
-          </div>
-          <button className="modal-close" onClick={onClose} aria-label="閉じる">✕</button>
-        </div>
-        <div className="modal-body">
-          {film.photos.length === 0 ? (
-            <div className="modal-empty">作例準備中</div>
-          ) : (
-            <div className="modal-photo-grid">
-              {film.photos.map((filename, i) => (
-                <div className="modal-photo" key={i}>
-                  <img
-                    src={`/images/${film.id}/${filename}`}
-                    alt={`${film.name_jp} ${i + 1}`}
-                    loading="lazy"
-                  />
-                </div>
-              ))}
+    <>
+      <div className="modal-overlay" onClick={onClose}>
+        <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
+          <div className="modal-header">
+            <div>
+              <div className="modal-title">{film.name_jp}</div>
+              <div className="modal-subtitle">{film.name_en}</div>
             </div>
-          )}
+            <button className="modal-close" onClick={onClose} aria-label="閉じる">✕</button>
+          </div>
+          <div className="modal-body">
+            {film.photos.length === 0 ? (
+              <div className="modal-empty">作例準備中</div>
+            ) : (
+              <div className="modal-photo-grid">
+                {film.photos.map((filename, i) => {
+                  const src = `/images/${film.id}/${filename}`;
+                  const alt = `${film.name_jp} ${i + 1}`;
+                  return (
+                    <div
+                      className="modal-photo"
+                      key={i}
+                      onClick={() => { setLightboxSrc(src); setLightboxAlt(alt); }}
+                    >
+                      <img src={src} alt={alt} loading="lazy" />
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
-    </div>
+      {lightboxSrc && (
+        <Lightbox src={lightboxSrc} alt={lightboxAlt} onClose={() => setLightboxSrc(null)} />
+      )}
+    </>
   );
 }
 
