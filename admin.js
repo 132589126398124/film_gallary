@@ -1,4 +1,4 @@
-const { useState, useEffect, useRef, useCallback } = React;
+﻿const { useState, useEffect, useRef, useCallback } = React;
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -135,7 +135,16 @@ function UploadZone({ filmId, onUpload, disabled }) {
       setProgress(60);
       const res = await fetch('/api/upload', { method: 'POST', body: fd });
       setProgress(90);
-      const data = await res.json();
+
+      const ct = res.headers.get('content-type') || '';
+      let data = {};
+      if (ct.includes('application/json')) {
+        data = await res.json();
+      } else if (!res.ok) {
+        if (res.status === 413) throw new Error('ファイルサイズが大きすぎます（10MB以下にしてください）');
+        throw new Error(`サーバーエラー (${res.status})`);
+      }
+
       if (!res.ok) throw new Error(data.error || 'アップロード失敗');
       setProgress(100);
       await onUpload(data.filename);
@@ -483,3 +492,4 @@ function App() {
 }
 
 ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+

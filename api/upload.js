@@ -1,6 +1,6 @@
-import busboy from 'busboy';
+﻿import busboy from 'busboy';
 
-export const config = { api: { bodyParser: false } };
+export const config = { api: { bodyParser: false, bodySizeLimit: "10mb" } };
 
 const MIME_TO_EXT = {
   'image/jpeg': 'jpg',
