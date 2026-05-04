@@ -68,7 +68,13 @@
       },
       "is_bw": false,
       "warning": null,
-      "photos": []
+      "photos": [
+        "001.jpg",
+        "002.jpg",
+        "003.jpg",
+        "004.jpg",
+        "005.jpg"
+      ]
     },
     {
       "id": "gold",
