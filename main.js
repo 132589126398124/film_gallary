@@ -75,22 +75,28 @@ function Lightbox({ src, alt, onClose }) {
 function FilmModal({ film, onClose }) {
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [lightboxAlt, setLightboxAlt] = useState('');
+  const lightboxRef = useRef(null);
 
+  // 스크롤 잠금 — 마운트/언마운트 시만 실행
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  // ref를 최신 lightboxSrc와 동기화
+  useEffect(() => { lightboxRef.current = lightboxSrc; }, [lightboxSrc]);
+
+  // ESC 핸들러 — 한 번만 등록, ref로 최신 값 참조
+  useEffect(() => {
     const onKey = (e) => {
-      if (e.key === 'Escape') {
-        if (lightboxSrc) setLightboxSrc(null);
-        else onClose();
-      }
+      if (e.key !== 'Escape') return;
+      if (lightboxRef.current) setLightboxSrc(null);
+      else onClose();
     };
     window.addEventListener('keydown', onKey);
-    return () => {
-      document.body.style.overflow = prev;
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [onClose, lightboxSrc]);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [onClose]);
 
   return (
     <>
@@ -114,7 +120,7 @@ function FilmModal({ film, onClose }) {
                   return (
                     <div
                       className="modal-photo"
-                      key={i}
+                      key={filename}
                       onClick={() => { setLightboxSrc(src); setLightboxAlt(alt); }}
                     >
                       <img src={src} alt={alt} loading="lazy" />

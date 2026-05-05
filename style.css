@@ -881,6 +881,50 @@ body {
   opacity: 1;
 }
 
+/* 모바일 이동 버튼 (터치 환경용) */
+.thumb-move-btns {
+  position: absolute;
+  bottom: 4px;
+  left: 0;
+  right: 0;
+  display: none;
+  justify-content: center;
+  gap: 4px;
+}
+
+.thumb-move {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  font-size: 18px;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+  padding: 0;
+}
+
+.thumb-move:disabled {
+  opacity: 0.25;
+  cursor: default;
+}
+
+.thumb-move:not(:disabled):active {
+  background: var(--accent);
+}
+
+/* 터치 기기에서만 이동 버튼 표시, 드래그 핸들 숨김 */
+@media (hover: none) and (pointer: coarse) {
+  .thumb-move-btns { display: flex; }
+  .thumb-drag-handle { display: none; }
+  .thumb-item[draggable] { cursor: default; }
+}
+
 .thumb-delete {
   position: absolute;
   top: 4px;
