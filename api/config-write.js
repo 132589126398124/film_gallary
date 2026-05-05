@@ -33,17 +33,28 @@ export default async function handler(req, res) {
     sha = getData.sha;
   }
 
-  const body = {
-    message: 'Update gallery-config.json via admin',
-    content: Buffer.from(JSON.stringify(config, null, 2)).toString('base64'),
-    ...(sha && { sha }),
-  };
+  const content = Buffer.from(JSON.stringify(config, null, 2)).toString('base64');
 
-  const putRes = await fetch(apiUrl, {
-    method: 'PUT',
-    headers,
-    body: JSON.stringify(body),
-  });
+  async function tryPut(currentSha, attempt = 0) {
+    const body = {
+      message: 'Update gallery-config.json via admin',
+      content,
+      ...(currentSha && { sha: currentSha }),
+    };
+    const putRes = await fetch(apiUrl, { method: 'PUT', headers, body: JSON.stringify(body) });
+
+    // 409 충돌: SHA가 stale → 최신 SHA 재취득 후 1회 재시도
+    if (putRes.status === 409 && attempt === 0) {
+      const retryGet = await fetch(apiUrl, { headers });
+      if (retryGet.ok) {
+        const retryData = await retryGet.json();
+        return tryPut(retryData.sha, 1);
+      }
+    }
+    return putRes;
+  }
+
+  const putRes = await tryPut(sha);
 
   if (!putRes.ok) {
     const err = await putRes.json();
