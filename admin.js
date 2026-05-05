@@ -367,7 +367,7 @@ function FilmSettings({ film, onChange }) {
 
 // ── Film admin card (accordion) ──────────────────────────
 
-function FilmAdminCard({ film, onDelete, onUpload, onReorder, onSettingsChange }) {
+function FilmAdminCard({ film, onDelete, onUpload, onReorder, onSettingsChange, onFilmDelete }) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -403,6 +403,99 @@ function FilmAdminCard({ film, onDelete, onUpload, onReorder, onSettingsChange }
           <div className="admin-section-label">設定</div>
           <FilmSettings film={film} onChange={onSettingsChange} />
         </div>
+        <div>
+          <button
+            className="btn-film-delete"
+            onClick={() => onFilmDelete(film.id)}
+            disabled={film.photos.length > 0}
+            title={film.photos.length > 0 ? '写真をすべて削除してください' : 'フィルムを削除'}
+          >
+            このフィルムを削除する
+          </button>
+          {film.photos.length > 0 && (
+            <div className="film-delete-hint">写真をすべて削除するとフィルムを削除できます</div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Film add form ────────────────────────────────────────
+
+function FilmAddForm({ onAdd, onClose }) {
+  const [form, setForm] = useState({
+    id: '', name_jp: '', name_en: '',
+    price_extra: 0, is_bw: false,
+    catchcopy: '',
+    tags: { color: '', grain: '', scene: '' },
+    warning: '',
+  });
+  const [error, setError] = useState('');
+
+  function set(field, value) { setForm((p) => ({ ...p, [field]: value })); }
+  function setTag(key, value) { setForm((p) => ({ ...p, tags: { ...p.tags, [key]: value } })); }
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (!form.id.trim() || !form.name_jp.trim()) { setError('IDとフィルム名は必須です'); return; }
+    if (!/^[a-z0-9-]+$/.test(form.id)) { setError('IDは小文字英数字とハイフンのみ'); return; }
+    onAdd({ ...form, id: form.id.trim(), photos: [], warning: form.warning.trim() || null });
+  }
+
+  return (
+    <div className="film-add-overlay" onClick={onClose}>
+      <div className="film-add-card" onClick={(e) => e.stopPropagation()}>
+        <div className="film-add-header">
+          <span>フィルムを追加</span>
+          <button className="modal-close" onClick={onClose} aria-label="閉じる">✕</button>
+        </div>
+        <form onSubmit={handleSubmit} className="film-add-form">
+          {error && <div className="login-error">{error}</div>}
+          {[
+            { label: 'ID (英小文字・数字)', field: 'id', placeholder: '例: portra160' },
+            { label: 'フィルム名 (日本語)', field: 'name_jp', placeholder: '例: コダック ポートラ160' },
+            { label: 'フィルム名 (英語)', field: 'name_en', placeholder: 'Kodak Portra 160' },
+          ].map(({ label, field, placeholder }) => (
+            <div className="form-field" key={field}>
+              <label className="form-label">{label}</label>
+              <input className="form-input" value={form[field]} onChange={(e) => set(field, e.target.value)} placeholder={placeholder} />
+            </div>
+          ))}
+          <div className="form-field">
+            <label className="form-label">追加料金</label>
+            <select className="form-input" value={form.price_extra} onChange={(e) => set('price_extra', Number(e.target.value))}>
+              <option value={0}>無料</option>
+              <option value={5000}>₩5,000</option>
+              <option value={10000}>₩10,000</option>
+            </select>
+          </div>
+          <div className="form-field">
+            <div className="form-row">
+              <button type="button" className={`form-toggle${form.is_bw ? ' on' : ''}`} onClick={() => set('is_bw', !form.is_bw)} />
+              <span className="form-toggle-label">白黒フィルム</span>
+            </div>
+          </div>
+          <div className="form-field">
+            <label className="form-label">キャッチコピー</label>
+            <textarea className="form-textarea" rows={2} value={form.catchcopy} onChange={(e) => set('catchcopy', e.target.value)} />
+          </div>
+          {[
+            { label: 'タグ — 色調', key: 'color', placeholder: '例: 自然な色調' },
+            { label: 'タグ — 粒子', key: 'grain', placeholder: '例: 粒子細かめ' },
+            { label: 'タグ — シーン', key: 'scene', placeholder: '例: 日中屋外' },
+          ].map(({ label, key, placeholder }) => (
+            <div className="form-field" key={key}>
+              <label className="form-label">{label}</label>
+              <input className="form-input" value={form.tags[key]} onChange={(e) => setTag(key, e.target.value)} placeholder={placeholder} />
+            </div>
+          ))}
+          <div className="form-field">
+            <label className="form-label">注意文 (任意)</label>
+            <textarea className="form-textarea" rows={2} value={form.warning} onChange={(e) => set('warning', e.target.value)} />
+          </div>
+          <button type="submit" className="btn-save" style={{ marginTop: 4 }}>追加する</button>
+        </form>
       </div>
     </div>
   );
@@ -415,6 +508,7 @@ function AdminScreen({ initialConfig, password, onLogout, showToast }) {
   const configRef = useRef(initialConfig);
   const [isDirty, setIsDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [showAddForm, setShowAddForm] = useState(false);
 
   // configRef를 항상 최신 config와 동기화
   // setState side-effect 없이 최신 상태를 동기적으로 읽기 위함
@@ -478,9 +572,26 @@ function AdminScreen({ initialConfig, password, onLogout, showToast }) {
     await saveConfig(next);
   }
 
-  // Delete: remove from photos array, immediately save config
+  // Delete photo: GitHub 파일 삭제 + config 업데이트
   async function handleDelete(filmId, filename) {
     if (!confirm(`「${filename}」を削除しますか？`)) return;
+
+    try {
+      const delRes = await fetch('/api/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password, filmId, filename }),
+      });
+      if (!delRes.ok) {
+        const err = await delRes.json();
+        showToast(`削除失敗: ${err.error}`, 'error');
+        return;
+      }
+    } catch (e) {
+      showToast(`削除エラー: ${e.message}`, 'error');
+      return;
+    }
+
     const next = {
       ...configRef.current,
       films: configRef.current.films.map((f) =>
@@ -494,13 +605,42 @@ function AdminScreen({ initialConfig, password, onLogout, showToast }) {
 
   // Settings change: mark dirty (explicit save required)
   function handleSettingsChange(filmId, field, value) {
-    setConfig((prev) => ({
-      ...prev,
-      films: prev.films.map((f) =>
+    const next = {
+      ...configRef.current,
+      films: configRef.current.films.map((f) =>
         f.id === filmId ? { ...f, [field]: value } : f
       ),
-    }));
+    };
+    setConfig(next);
     setIsDirty(true);
+  }
+
+  // Film add
+  async function handleFilmAdd(filmData) {
+    if (configRef.current.films.some((f) => f.id === filmData.id)) {
+      alert(`ID「${filmData.id}」はすでに使用されています`);
+      return;
+    }
+    const next = { ...configRef.current, films: [...configRef.current.films, filmData] };
+    setConfig(next);
+    setShowAddForm(false);
+    showToast(`${filmData.name_jp} を追加しました`);
+    await saveConfig(next);
+  }
+
+  // Film delete (사진이 없을 때만 허용)
+  async function handleFilmDelete(filmId) {
+    const film = configRef.current.films.find((f) => f.id === filmId);
+    if (!film) return;
+    if (film.photos.length > 0) {
+      alert('写真をすべて削除してからフィルムを削除してください');
+      return;
+    }
+    if (!confirm(`「${film.name_jp}」を削除しますか？この操作は取り消せません。`)) return;
+    const next = { ...configRef.current, films: configRef.current.films.filter((f) => f.id !== filmId) };
+    setConfig(next);
+    showToast(`${film.name_jp} を削除しました`);
+    await saveConfig(next);
   }
 
   // Group films by price for display
@@ -512,10 +652,7 @@ function AdminScreen({ initialConfig, password, onLogout, showToast }) {
 
   return (
     <>
-      <div
-        className="admin-header"
-        style={{ position: 'sticky', top: 0, zIndex: 100 }}
-      >
+      <div className="admin-header" style={{ position: 'sticky', top: 0, zIndex: 100 }}>
         <div className="admin-wrap" style={{ padding: '0 16px', maxWidth: 700, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
           <span className="admin-header-title">管理画面</span>
           <button className="btn-logout" onClick={onLogout}>ログアウト</button>
@@ -535,22 +672,25 @@ function AdminScreen({ initialConfig, password, onLogout, showToast }) {
                   onUpload={handleUpload}
                   onReorder={handleReorder}
                   onSettingsChange={handleSettingsChange}
+                  onFilmDelete={handleFilmDelete}
                 />
               ))}
             </div>
           )
         )}
 
+        <button className="btn-add-film" onClick={() => setShowAddForm(true)}>
+          ＋ フィルムを追加
+        </button>
+
         {isDirty && (
-          <button
-            className="btn-save"
-            onClick={() => saveConfig(config)}
-            disabled={saving}
-          >
+          <button className="btn-save" onClick={() => saveConfig(config)} disabled={saving}>
             {saving ? '保存中...' : '設定を保存する'}
           </button>
         )}
       </div>
+
+      {showAddForm && <FilmAddForm onAdd={handleFilmAdd} onClose={() => setShowAddForm(false)} />}
     </>
   );
 }

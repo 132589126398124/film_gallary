@@ -60,6 +60,33 @@ body {
   padding: 44px 0 28px;
 }
 
+.header-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.lang-toggle {
+  font-family: var(--font-latin);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  background: none;
+  border: 1.5px solid var(--divider);
+  border-radius: 8px;
+  padding: 5px 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: border-color 0.2s, color 0.2s;
+}
+
+.lang-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
 .header-handle {
   font-family: var(--font-latin);
   font-size: 26px;
@@ -248,6 +275,21 @@ body {
   height: 100%;
   object-fit: cover;
   display: block;
+}
+
+/* ── 사진 수 뱃지 (3장 초과 시 마지막 셀) ── */
+.photo-count-badge {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.48);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-latin);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 /* ── Photo placeholders ── */
@@ -1249,6 +1291,103 @@ body {
 
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+
+/* ── 필름 추가 버튼 ── */
+.btn-add-film {
+  width: 100%;
+  padding: 14px;
+  background: none;
+  border: 2px dashed var(--divider);
+  border-radius: 14px;
+  font-family: var(--font-jp);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+  margin-top: 8px;
+}
+
+.btn-add-film:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* ── 필름 삭제 버튼 ── */
+.btn-film-delete {
+  width: 100%;
+  padding: 11px;
+  background: none;
+  border: 1.5px solid var(--divider);
+  border-radius: 10px;
+  font-family: var(--font-jp);
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: border-color 0.2s, color 0.2s;
+  margin-top: 4px;
+}
+
+.btn-film-delete:not(:disabled):hover {
+  border-color: #dc2626;
+  color: #dc2626;
+}
+
+.btn-film-delete:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.film-delete-hint {
+  font-size: 11px;
+  color: var(--text-muted);
+  text-align: center;
+  margin-top: 4px;
+}
+
+/* ── 필름 추가 오버레이/폼 ── */
+.film-add-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  z-index: 500;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  animation: overlay-in 0.2s ease;
+}
+
+.film-add-card {
+  background: var(--page-bg);
+  border-radius: 24px 24px 0 0;
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  animation: sheet-up 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+}
+
+.film-add-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 20px 14px;
+  font-size: 17px;
+  font-weight: 700;
+  position: sticky;
+  top: 0;
+  background: var(--page-bg);
+  border-bottom: 1px solid var(--divider);
+  z-index: 1;
+}
+
+.film-add-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px 20px 32px;
 }
 
 /* ── Responsive: admin ── */
