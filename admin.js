@@ -46,11 +46,17 @@ function LoginScreen({ onLogin }) {
     if (!pw.trim()) return;
     setLoading(true);
     setError('');
-    // Verify password by attempting a config-write preflight
     try {
-      const res = await fetch('/api/config-read');
-      if (!res.ok) throw new Error();
-      // Password is verified on first real API call; store it and proceed
+      const res = await fetch('/api/auth', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pw }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || 'パスワードが正しくありません');
+        return;
+      }
       sessionStorage.setItem('adminPassword', pw);
       onLogin(pw);
     } catch {
@@ -90,27 +96,21 @@ function ThumbnailGrid({ film, onDelete, onReorder }) {
     return <div className="thumb-empty">まだ写真がありません</div>;
   }
 
-  function handleDragStart(i) {
-    dragIdx.current = i;
-  }
-
-  function handleDragOver(e, i) {
-    e.preventDefault();
-    setOverIdx(i);
-  }
-
-  function handleDrop(i) {
-    const from = dragIdx.current;
-    if (from === null || from === i) { setOverIdx(null); return; }
+  function movePhoto(from, to) {
+    if (to < 0 || to >= film.photos.length) return;
     const next = [...film.photos];
     const [moved] = next.splice(from, 1);
-    next.splice(i, 0, moved);
-    dragIdx.current = null;
-    setOverIdx(null);
+    next.splice(to, 0, moved);
     onReorder(film.id, next);
   }
 
-  function handleDragEnd() {
+  function handleDragStart(i) { dragIdx.current = i; }
+  function handleDragOver(e, i) { e.preventDefault(); setOverIdx(i); }
+  function handleDragEnd() { dragIdx.current = null; setOverIdx(null); }
+  function handleDrop(i) {
+    const from = dragIdx.current;
+    if (from === null || from === i) { setOverIdx(null); return; }
+    movePhoto(from, i);
     dragIdx.current = null;
     setOverIdx(null);
   }
@@ -140,6 +140,21 @@ function ThumbnailGrid({ film, onDelete, onReorder }) {
             ×
           </button>
           <div className="thumb-drag-handle">⠿</div>
+          {/* 모바일용 이동 버튼 */}
+          <div className="thumb-move-btns">
+            <button
+              className="thumb-move"
+              disabled={i === 0}
+              onClick={() => movePhoto(i, i - 1)}
+              title="前へ"
+            >‹</button>
+            <button
+              className="thumb-move"
+              disabled={i === film.photos.length - 1}
+              onClick={() => movePhoto(i, i + 1)}
+              title="次へ"
+            >›</button>
+          </div>
         </div>
       ))}
     </div>
@@ -396,9 +411,17 @@ function FilmAdminCard({ film, onDelete, onUpload, onReorder, onSettingsChange }
 // ── Main admin screen ────────────────────────────────────
 
 function AdminScreen({ initialConfig, password, onLogout, showToast }) {
-  const [config, setConfig] = useState(initialConfig);
+  const [config, setConfigState] = useState(initialConfig);
+  const configRef = useRef(initialConfig);
   const [isDirty, setIsDirty] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // configRef를 항상 최신 config와 동기화
+  // setState side-effect 없이 최신 상태를 동기적으로 읽기 위함
+  function setConfig(next) {
+    configRef.current = next;
+    setConfigState(next);
+  }
 
   // Warn before leaving with unsaved changes
   useEffect(() => {
@@ -431,40 +454,36 @@ function AdminScreen({ initialConfig, password, onLogout, showToast }) {
   // Upload: add filenames to photos, save once
   async function handleUpload(filmId, filenames) {
     const list = Array.isArray(filenames) ? filenames : [filenames];
-    setConfig((prev) => {
-      const next = {
-        ...prev,
-        films: prev.films.map((f) =>
-          f.id === filmId ? { ...f, photos: [...f.photos, ...list] } : f
-        ),
-      };
-      saveConfig(next);
-      return next;
-    });
+    const next = {
+      ...configRef.current,
+      films: configRef.current.films.map((f) =>
+        f.id === filmId ? { ...f, photos: [...f.photos, ...list] } : f
+      ),
+    };
+    setConfig(next);
     const msg = list.length > 1 ? `${list.length}枚をアップロードしました` : `${list[0]} をアップロードしました`;
     showToast(msg);
+    await saveConfig(next);
   }
 
   // Reorder: update photos array order, immediately save config
   async function handleReorder(filmId, newPhotos) {
-    setConfig((prev) => {
-      const next = {
-        ...prev,
-        films: prev.films.map((f) =>
-          f.id === filmId ? { ...f, photos: newPhotos } : f
-        ),
-      };
-      saveConfig(next);
-      return next;
-    });
+    const next = {
+      ...configRef.current,
+      films: configRef.current.films.map((f) =>
+        f.id === filmId ? { ...f, photos: newPhotos } : f
+      ),
+    };
+    setConfig(next);
+    await saveConfig(next);
   }
 
   // Delete: remove from photos array, immediately save config
   async function handleDelete(filmId, filename) {
     if (!confirm(`「${filename}」を削除しますか？`)) return;
     const next = {
-      ...config,
-      films: config.films.map((f) =>
+      ...configRef.current,
+      films: configRef.current.films.map((f) =>
         f.id === filmId ? { ...f, photos: f.photos.filter((p) => p !== filename) } : f
       ),
     };
