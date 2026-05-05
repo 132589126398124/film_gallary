@@ -1,14 +1,5 @@
 const { useState, useEffect, useRef, useCallback } = React;
 
-// Camera icon SVG
-const CameraIcon = () => (
-  <svg viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="1.5">
-    <rect x="3" y="6" width="18" height="14" rx="2"/>
-    <circle cx="12" cy="13" r="4"/>
-    <path d="M9 6V5a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v1"/>
-  </svg>
-);
-
 function PhotoGrid({ film }) {
   const { photos, id, is_bw } = film;
   const phClass = `photo-placeholder${is_bw ? ' mono' : ''}`;
@@ -34,7 +25,7 @@ function PhotoGrid({ film }) {
   return (
     <div className={gridClass}>
       {display.map((filename, i) => (
-        <div className="film-photo" key={i}>
+        <div className="film-photo" key={filename}>
           <img
             src={`/images/${id}/${filename}`}
             alt={`${film.name_jp} sample ${i + 1}`}
@@ -76,18 +67,24 @@ function FilmModal({ film, onClose }) {
   const [lightboxSrc, setLightboxSrc] = useState(null);
   const [lightboxAlt, setLightboxAlt] = useState('');
   const lightboxRef = useRef(null);
+  const closeRef = useRef(null);
+  const sheetRef = useRef(null);
+  const touchStartY = useRef(0);
+  const touchDeltaY = useRef(0);
+  const titleId = `modal-title-${film.id}`;
 
-  // 스크롤 잠금 — 마운트/언마운트 시만 실행
+  // 스크롤 잠금
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
+    closeRef.current?.focus();
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  // ref를 최신 lightboxSrc와 동기화
+  // lightboxRef 동기화
   useEffect(() => { lightboxRef.current = lightboxSrc; }, [lightboxSrc]);
 
-  // ESC 핸들러 — 한 번만 등록, ref로 최신 값 참조
+  // ESC 핸들러 (한 번만 등록)
   useEffect(() => {
     const onKey = (e) => {
       if (e.key !== 'Escape') return;
@@ -98,18 +95,74 @@ function FilmModal({ film, onClose }) {
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);
 
+  // 스와이프 다운으로 닫기
+  function handleTouchStart(e) {
+    touchStartY.current = e.touches[0].clientY;
+    touchDeltaY.current = 0;
+    if (sheetRef.current) sheetRef.current.style.transition = 'none';
+  }
+
+  function handleTouchMove(e) {
+    const dy = e.touches[0].clientY - touchStartY.current;
+    if (dy < 0) return;
+    touchDeltaY.current = dy;
+    if (sheetRef.current) sheetRef.current.style.transform = `translateY(${dy}px)`;
+  }
+
+  function handleTouchEnd() {
+    if (sheetRef.current) {
+      sheetRef.current.style.transition = '';
+      sheetRef.current.style.transform = '';
+    }
+    if (touchDeltaY.current > 100) onClose();
+  }
+
   return (
     <>
-      <div className="modal-overlay" onClick={onClose}>
-        <div className="modal-sheet" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="modal-overlay"
+        onClick={onClose}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+      >
+        <div
+          className="modal-sheet"
+          ref={sheetRef}
+          onClick={(e) => e.stopPropagation()}
+          onTouchStart={handleTouchStart}
+          onTouchMove={handleTouchMove}
+          onTouchEnd={handleTouchEnd}
+        >
+          {/* 스와이프 인디케이터 */}
+          <div className="modal-swipe-bar" aria-hidden="true" />
+
           <div className="modal-header">
             <div>
-              <div className="modal-title">{film.name_jp}</div>
+              <div className="modal-title" id={titleId}>{film.name_jp}</div>
               <div className="modal-subtitle">{film.name_en}</div>
             </div>
-            <button className="modal-close" onClick={onClose} aria-label="閉じる">✕</button>
+            <button ref={closeRef} className="modal-close" onClick={onClose} aria-label="閉じる">✕</button>
           </div>
+
           <div className="modal-body">
+            {/* 필름 정보 */}
+            <div className="modal-film-info">
+              <p className="modal-catchcopy">{film.catchcopy}</p>
+              <div className="modal-tags">
+                <span className="tag tone">{film.tags.color}</span>
+                <span className="tag grain">{film.tags.grain}</span>
+                <span className="tag scene">{film.tags.scene}</span>
+                <PriceBadge price={film.price_extra} />
+              </div>
+              {film.warning && (
+                <div className="film-warning">
+                  <strong>⚠ 注意：</strong>{film.warning}
+                </div>
+              )}
+            </div>
+
+            {/* 사진 그리드 */}
             {film.photos.length === 0 ? (
               <div className="modal-empty">作例準備中</div>
             ) : (
@@ -140,15 +193,21 @@ function FilmModal({ film, onClose }) {
 }
 
 function FilmCard({ film, onSelect }) {
-  const cardRef = useRef(null);
+  const hasPhotos = film.photos.length > 0;
+
+  function handleActivate() {
+    if (hasPhotos) onSelect(film);
+  }
 
   return (
     <div
-      className={`film-card${film.is_bw ? ' mono-film' : ''}`}
+      className={`film-card${film.is_bw ? ' mono-film' : ''}${hasPhotos ? ' has-photos' : ''}`}
       data-card
-      ref={cardRef}
-      onClick={() => film.photos.length > 0 && onSelect(film)}
-      style={film.photos.length > 0 ? { cursor: 'pointer' } : {}}
+      onClick={handleActivate}
+      role={hasPhotos ? 'button' : undefined}
+      tabIndex={hasPhotos ? 0 : undefined}
+      onKeyDown={hasPhotos ? (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); handleActivate(); } } : undefined}
+      aria-label={hasPhotos ? `${film.name_jp} の作例を見る` : undefined}
     >
       <PhotoGrid film={film} />
       <div className="film-body">
@@ -168,7 +227,7 @@ function FilmCard({ film, onSelect }) {
             <strong>⚠ 注意：</strong>{film.warning}
           </div>
         )}
-        {film.photos.length > 0 && (
+        {hasPhotos && (
           <div className="film-more-hint">全{film.photos.length}枚を見る →</div>
         )}
       </div>
@@ -221,14 +280,12 @@ function Gallery() {
       .catch((e) => setError(e.message));
   }, []);
 
-  // Scroll animation: IntersectionObserver with 60ms stagger
+  // 스크롤 애니메이션 (60ms stagger)
   useEffect(() => {
     if (films.length === 0) return;
-
     const cards = document.querySelectorAll('[data-card]');
     const observer = new IntersectionObserver(
       (entries) => {
-        // Group by parent grid for stagger
         const gridMap = new Map();
         entries.forEach((entry) => {
           if (!entry.isIntersecting) return;
@@ -245,7 +302,6 @@ function Gallery() {
       },
       { threshold: 0.08 }
     );
-
     cards.forEach((card) => observer.observe(card));
     return () => observer.disconnect();
   }, [films]);
@@ -258,7 +314,6 @@ function Gallery() {
     );
   }
 
-  // Group by price
   const groups = { 0: [], 5000: [], 10000: [] };
   films.forEach((f) => {
     if (groups[f.price_extra]) groups[f.price_extra].push(f);
