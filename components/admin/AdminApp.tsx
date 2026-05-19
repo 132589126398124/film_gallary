@@ -1,19 +1,20 @@
-﻿const { useState, useEffect, useRef, useCallback } = React;
+'use client';
 
-// ── Helpers ──────────────────────────────────────────────
+import { useState, useEffect, useRef, useCallback } from 'react';
+import type { Film, GalleryConfig } from '@/lib/types';
 
-const PRICE_OPTIONS = [0, 5000, 10000];
+const PRICE_OPTIONS = [0, 5000, 10000] as const;
 
-function getPassword() {
+function getPassword(): string {
+  if (typeof sessionStorage === 'undefined') return '';
   return sessionStorage.getItem('adminPassword') || '';
 }
 
-// ── Toast ────────────────────────────────────────────────
-
+/* ── Toast ── */
 function useToast() {
-  const [toasts, setToasts] = useState([]);
+  const [toasts, setToasts] = useState<{ id: number; message: string; type: string }[]>([]);
 
-  const showToast = useCallback((message, type = 'success') => {
+  const showToast = useCallback((message: string, type = 'success') => {
     const id = Date.now();
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
@@ -21,27 +22,28 @@ function useToast() {
     }, 3000);
   }, []);
 
-  const ToastContainer = () => (
-    <div className="toast-container">
-      {toasts.map((t) => (
-        <div key={t.id} className={`toast ${t.type}`}>
-          {t.message}
-        </div>
-      ))}
-    </div>
-  );
+  function ToastContainer() {
+    return (
+      <div className="toast-container">
+        {toasts.map((t) => (
+          <div key={t.id} className={`toast ${t.type}`}>
+            {t.message}
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return { showToast, ToastContainer };
 }
 
-// ── Login screen ─────────────────────────────────────────
-
-function LoginScreen({ onLogin }) {
+/* ── Login ── */
+function LoginScreen({ onLogin }: { onLogin: (pw: string) => void }) {
   const [pw, setPw] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(e) {
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!pw.trim()) return;
     setLoading(true);
@@ -86,33 +88,29 @@ function LoginScreen({ onLogin }) {
   );
 }
 
-// ── Thumbnail grid ───────────────────────────────────────
-
-function ThumbnailGrid({ film, onDelete, onReorder }) {
-  const dragIdx = useRef(null);
-  const [overIdx, setOverIdx] = useState(null);
+/* ── Thumbnail Grid ── */
+function ThumbnailGrid({
+  film,
+  onDelete,
+  onReorder,
+}: {
+  film: Film;
+  onDelete: (filmId: string, filename: string) => void;
+  onReorder: (filmId: string, newPhotos: string[]) => void;
+}) {
+  const dragIdx = useRef<number | null>(null);
+  const [overIdx, setOverIdx] = useState<number | null>(null);
 
   if (film.photos.length === 0) {
     return <div className="thumb-empty">まだ写真がありません</div>;
   }
 
-  function movePhoto(from, to) {
+  function movePhoto(from: number, to: number) {
     if (to < 0 || to >= film.photos.length) return;
     const next = [...film.photos];
     const [moved] = next.splice(from, 1);
     next.splice(to, 0, moved);
     onReorder(film.id, next);
-  }
-
-  function handleDragStart(i) { dragIdx.current = i; }
-  function handleDragOver(e, i) { e.preventDefault(); setOverIdx(i); }
-  function handleDragEnd() { dragIdx.current = null; setOverIdx(null); }
-  function handleDrop(i) {
-    const from = dragIdx.current;
-    if (from === null || from === i) { setOverIdx(null); return; }
-    movePhoto(from, i);
-    dragIdx.current = null;
-    setOverIdx(null);
   }
 
   return (
@@ -122,38 +120,40 @@ function ThumbnailGrid({ film, onDelete, onReorder }) {
           className={`thumb-item${overIdx === i ? ' drag-over' : ''}`}
           key={filename}
           draggable
-          onDragStart={() => handleDragStart(i)}
-          onDragOver={(e) => handleDragOver(e, i)}
-          onDrop={() => handleDrop(i)}
-          onDragEnd={handleDragEnd}
+          onDragStart={() => { dragIdx.current = i; }}
+          onDragOver={(e) => { e.preventDefault(); setOverIdx(i); }}
+          onDrop={() => {
+            const from = dragIdx.current;
+            if (from === null || from === i) { setOverIdx(null); return; }
+            movePhoto(from, i);
+            dragIdx.current = null;
+            setOverIdx(null);
+          }}
+          onDragEnd={() => { dragIdx.current = null; setOverIdx(null); }}
           onDragLeave={() => setOverIdx(null)}
         >
-          <img
-            src={`/images/${film.id}/${filename}`}
-            alt={`${film.name_jp} ${i + 1}`}
-          />
-          <button
-            className="thumb-delete"
-            onClick={() => onDelete(film.id, filename)}
-            title="削除"
-          >
+          <img src={`/images/${film.id}/${filename}`} alt={`${film.name_jp} ${i + 1}`} />
+          <button className="thumb-delete" onClick={() => onDelete(film.id, filename)} title="削除">
             ×
           </button>
           <div className="thumb-drag-handle">⠿</div>
-          {/* 모바일용 이동 버튼 */}
           <div className="thumb-move-btns">
             <button
               className="thumb-move"
               disabled={i === 0}
               onClick={() => movePhoto(i, i - 1)}
               title="前へ"
-            >‹</button>
+            >
+              ‹
+            </button>
             <button
               className="thumb-move"
               disabled={i === film.photos.length - 1}
               onClick={() => movePhoto(i, i + 1)}
               title="次へ"
-            >›</button>
+            >
+              ›
+            </button>
           </div>
         </div>
       ))}
@@ -161,11 +161,10 @@ function ThumbnailGrid({ film, onDelete, onReorder }) {
   );
 }
 
-// ── Upload zone ──────────────────────────────────────────
-
+/* ── Upload Zone ── */
 const MAX_UPLOAD_BYTES = 4.3 * 1024 * 1024;
 
-async function compressImage(file) {
+async function compressImage(file: File): Promise<Blob> {
   return new Promise((resolve) => {
     const img = new Image();
     const url = URL.createObjectURL(file);
@@ -181,12 +180,12 @@ async function compressImage(file) {
       const canvas = document.createElement('canvas');
       canvas.width = width;
       canvas.height = height;
-      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      canvas.getContext('2d')!.drawImage(img, 0, 0, width, height);
       const qualities = [0.95, 0.88, 0.80, 0.70, 0.60, 0.50, 0.40];
       let idx = 0;
       function tryNext() {
         if (idx >= qualities.length) {
-          canvas.toBlob((blob) => resolve(blob), 'image/jpeg', 0.40);
+          canvas.toBlob((blob) => resolve(blob!), 'image/jpeg', 0.40);
           return;
         }
         const q = qualities[idx++];
@@ -202,21 +201,31 @@ async function compressImage(file) {
   });
 }
 
-function UploadZone({ filmId, onUpload, disabled }) {
+function UploadZone({
+  filmId,
+  onUpload,
+  disabled,
+}: {
+  filmId: string;
+  onUpload: (filenames: string[]) => Promise<void>;
+  disabled: boolean;
+}) {
   const [dragOver, setDragOver] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState('');
-  const inputRef = useRef(null);
+  const inputRef = useRef<HTMLInputElement>(null);
 
-  async function uploadSingle(file, current, total) {
+  async function uploadSingle(file: File, current: number, total: number): Promise<string> {
     const prefix = total > 1 ? `${current}/${total} ` : '';
+    let fileToUpload: File | Blob = file;
 
-    let fileToUpload = file;
     if (file.size > MAX_UPLOAD_BYTES) {
       setStatusText(`${prefix}圧縮中...`);
       const compressed = await compressImage(file);
-      fileToUpload = new File([compressed], file.name.replace(/\.[^.]+$/, '.jpg'), { type: 'image/jpeg' });
+      fileToUpload = new File([compressed], file.name.replace(/\.[^.]+$/, '.jpg'), {
+        type: 'image/jpeg',
+      });
     }
 
     setStatusText(`${prefix}アップロード中...`);
@@ -227,7 +236,7 @@ function UploadZone({ filmId, onUpload, disabled }) {
 
     const res = await fetch('/api/upload', { method: 'POST', body: fd });
     const ct = res.headers.get('content-type') || '';
-    let data = {};
+    let data: { filename?: string; error?: string } = {};
     if (ct.includes('application/json')) {
       data = await res.json();
     } else if (!res.ok) {
@@ -235,17 +244,17 @@ function UploadZone({ filmId, onUpload, disabled }) {
       throw new Error(`サーバーエラー (${res.status})`);
     }
     if (!res.ok) throw new Error(data.error || 'アップロード失敗');
-    return data.filename;
+    return data.filename!;
   }
 
-  async function handleFiles(fileList) {
+  async function handleFiles(fileList: FileList) {
     const files = Array.from(fileList).filter((f) => f.type.startsWith('image/'));
     if (files.length === 0) return;
 
     setUploading(true);
     setProgress(0);
-    const uploaded = [];
-    const errors = [];
+    const uploaded: string[] = [];
+    const errors: string[] = [];
 
     for (let i = 0; i < files.length; i++) {
       setProgress(Math.round((i / files.length) * 100));
@@ -253,7 +262,7 @@ function UploadZone({ filmId, onUpload, disabled }) {
         const filename = await uploadSingle(files[i], i + 1, files.length);
         uploaded.push(filename);
       } catch (e) {
-        errors.push(`${files[i].name}: ${e.message}`);
+        errors.push(`${files[i].name}: ${(e as Error).message}`);
       }
     }
 
@@ -287,7 +296,7 @@ function UploadZone({ filmId, onUpload, disabled }) {
           accept="image/*"
           multiple
           disabled={disabled || uploading}
-          onChange={(e) => handleFiles(e.target.files)}
+          onChange={(e) => e.target.files && handleFiles(e.target.files)}
         />
         <div className="upload-zone-icon">📁</div>
         <div className="upload-zone-text">
@@ -307,17 +316,16 @@ function UploadZone({ filmId, onUpload, disabled }) {
   );
 }
 
-// ── Film settings form ───────────────────────────────────
-
-function FilmSettings({ film, onChange }) {
+/* ── Film Settings Form ── */
+function FilmSettings({
+  film,
+  onChange,
+}: {
+  film: Film;
+  onChange: (filmId: string, field: keyof Film, value: unknown) => void;
+}) {
   const hasWarning = film.warning !== null && film.warning !== undefined;
   const [warningOn, setWarningOn] = useState(hasWarning);
-
-  function handleWarningToggle() {
-    const next = !warningOn;
-    setWarningOn(next);
-    onChange(film.id, 'warning', next ? (film.warning || '') : null);
-  }
 
   return (
     <div className="settings-form">
@@ -346,7 +354,11 @@ function FilmSettings({ film, onChange }) {
           <button
             type="button"
             className={`form-toggle${warningOn ? ' on' : ''}`}
-            onClick={handleWarningToggle}
+            onClick={() => {
+              const next = !warningOn;
+              setWarningOn(next);
+              onChange(film.id, 'warning', next ? (film.warning || '') : null);
+            }}
           />
           <span className="form-toggle-label">注意文を表示</span>
         </div>
@@ -365,9 +377,22 @@ function FilmSettings({ film, onChange }) {
   );
 }
 
-// ── Film admin card (accordion) ──────────────────────────
-
-function FilmAdminCard({ film, onDelete, onUpload, onReorder, onSettingsChange, onFilmDelete }) {
+/* ── Film Admin Card ── */
+function FilmAdminCard({
+  film,
+  onDelete,
+  onUpload,
+  onReorder,
+  onSettingsChange,
+  onFilmDelete,
+}: {
+  film: Film;
+  onDelete: (filmId: string, filename: string) => void;
+  onUpload: (filmId: string, filenames: string[]) => Promise<void>;
+  onReorder: (filmId: string, newPhotos: string[]) => void;
+  onSettingsChange: (filmId: string, field: keyof Film, value: unknown) => void;
+  onFilmDelete: (filmId: string) => void;
+}) {
   const [open, setOpen] = useState(false);
 
   return (
@@ -398,7 +423,11 @@ function FilmAdminCard({ film, onDelete, onUpload, onReorder, onSettingsChange, 
           <div className="admin-section-label">写真</div>
           <ThumbnailGrid film={film} onDelete={onDelete} onReorder={onReorder} />
         </div>
-        <UploadZone filmId={film.id} onUpload={(filenames) => onUpload(film.id, filenames)} />
+        <UploadZone
+          filmId={film.id}
+          onUpload={(filenames) => onUpload(film.id, filenames)}
+          disabled={false}
+        />
         <div>
           <div className="admin-section-label">設定</div>
           <FilmSettings film={film} onChange={onSettingsChange} />
@@ -421,26 +450,50 @@ function FilmAdminCard({ film, onDelete, onUpload, onReorder, onSettingsChange, 
   );
 }
 
-// ── Film add form ────────────────────────────────────────
-
-function FilmAddForm({ onAdd, onClose }) {
+/* ── Film Add Form ── */
+function FilmAddForm({
+  onAdd,
+  onClose,
+}: {
+  onAdd: (filmData: Film) => void;
+  onClose: () => void;
+}) {
   const [form, setForm] = useState({
-    id: '', name_jp: '', name_en: '',
-    price_extra: 0, is_bw: false,
+    id: '',
+    name_jp: '',
+    name_en: '',
+    price_extra: 0 as 0 | 5000 | 10000,
+    is_bw: false,
     catchcopy: '',
     tags: { color: '', grain: '', scene: '' },
     warning: '',
   });
   const [error, setError] = useState('');
 
-  function set(field, value) { setForm((p) => ({ ...p, [field]: value })); }
-  function setTag(key, value) { setForm((p) => ({ ...p, tags: { ...p.tags, [key]: value } })); }
+  function set<K extends keyof typeof form>(field: K, value: typeof form[K]) {
+    setForm((p) => ({ ...p, [field]: value }));
+  }
 
-  function handleSubmit(e) {
+  function setTag(key: keyof typeof form.tags, value: string) {
+    setForm((p) => ({ ...p, tags: { ...p.tags, [key]: value } }));
+  }
+
+  function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!form.id.trim() || !form.name_jp.trim()) { setError('IDとフィルム名は必須です'); return; }
-    if (!/^[a-z0-9-]+$/.test(form.id)) { setError('IDは小文字英数字とハイフンのみ'); return; }
-    onAdd({ ...form, id: form.id.trim(), photos: [], warning: form.warning.trim() || null });
+    if (!form.id.trim() || !form.name_jp.trim()) {
+      setError('IDとフィルム名は必須です');
+      return;
+    }
+    if (!/^[a-z0-9-]+$/.test(form.id)) {
+      setError('IDは小文字英数字とハイフンのみ');
+      return;
+    }
+    onAdd({
+      ...form,
+      id: form.id.trim(),
+      photos: [],
+      warning: form.warning.trim() || null,
+    });
   }
 
   return (
@@ -448,85 +501,129 @@ function FilmAddForm({ onAdd, onClose }) {
       <div className="film-add-card" onClick={(e) => e.stopPropagation()}>
         <div className="film-add-header">
           <span>フィルムを追加</span>
-          <button className="modal-close" onClick={onClose} aria-label="閉じる">✕</button>
+          <button className="modal-close" onClick={onClose} aria-label="閉じる">
+            ✕
+          </button>
         </div>
         <form onSubmit={handleSubmit} className="film-add-form">
           {error && <div className="login-error">{error}</div>}
-          {[
-            { label: 'ID (英小文字・数字)', field: 'id', placeholder: '例: portra160' },
-            { label: 'フィルム名 (日本語)', field: 'name_jp', placeholder: '例: コダック ポートラ160' },
-            { label: 'フィルム名 (英語)', field: 'name_en', placeholder: 'Kodak Portra 160' },
-          ].map(({ label, field, placeholder }) => (
+          {(
+            [
+              { label: 'ID (英小文字・数字)', field: 'id' as const, placeholder: '例: portra160' },
+              { label: 'フィルム名 (日本語)', field: 'name_jp' as const, placeholder: '例: コダック ポートラ160' },
+              { label: 'フィルム名 (英語)', field: 'name_en' as const, placeholder: 'Kodak Portra 160' },
+            ] as const
+          ).map(({ label, field, placeholder }) => (
             <div className="form-field" key={field}>
               <label className="form-label">{label}</label>
-              <input className="form-input" value={form[field]} onChange={(e) => set(field, e.target.value)} placeholder={placeholder} />
+              <input
+                className="form-input"
+                value={form[field]}
+                onChange={(e) => set(field, e.target.value as never)}
+                placeholder={placeholder}
+              />
             </div>
           ))}
           <div className="form-field">
             <label className="form-label">追加料金</label>
-            <select className="form-input" value={form.price_extra} onChange={(e) => set('price_extra', Number(e.target.value))}>
-              <option value={0}>無料</option>
-              <option value={5000}>₩5,000</option>
-              <option value={10000}>₩10,000</option>
+            <select
+              className="form-input"
+              value={form.price_extra}
+              onChange={(e) => set('price_extra', Number(e.target.value) as 0 | 5000 | 10000)}
+            >
+              {PRICE_OPTIONS.map((p) => (
+                <option key={p} value={p}>
+                  {p === 0 ? '無料' : `₩${p.toLocaleString()}`}
+                </option>
+              ))}
             </select>
           </div>
           <div className="form-field">
             <div className="form-row">
-              <button type="button" className={`form-toggle${form.is_bw ? ' on' : ''}`} onClick={() => set('is_bw', !form.is_bw)} />
+              <button
+                type="button"
+                className={`form-toggle${form.is_bw ? ' on' : ''}`}
+                onClick={() => set('is_bw', !form.is_bw)}
+              />
               <span className="form-toggle-label">白黒フィルム</span>
             </div>
           </div>
           <div className="form-field">
             <label className="form-label">キャッチコピー</label>
-            <textarea className="form-textarea" rows={2} value={form.catchcopy} onChange={(e) => set('catchcopy', e.target.value)} />
+            <textarea
+              className="form-textarea"
+              rows={2}
+              value={form.catchcopy}
+              onChange={(e) => set('catchcopy', e.target.value)}
+            />
           </div>
-          {[
-            { label: 'タグ — 色調', key: 'color', placeholder: '例: 自然な色調' },
-            { label: 'タグ — 粒子', key: 'grain', placeholder: '例: 粒子細かめ' },
-            { label: 'タグ — シーン', key: 'scene', placeholder: '例: 日中屋外' },
-          ].map(({ label, key, placeholder }) => (
+          {(
+            [
+              { label: 'タグ — 色調', key: 'color' as const, placeholder: '例: 自然な色調' },
+              { label: 'タグ — 粒子', key: 'grain' as const, placeholder: '例: 粒子細かめ' },
+              { label: 'タグ — シーン', key: 'scene' as const, placeholder: '例: 日中屋外' },
+            ] as const
+          ).map(({ label, key, placeholder }) => (
             <div className="form-field" key={key}>
               <label className="form-label">{label}</label>
-              <input className="form-input" value={form.tags[key]} onChange={(e) => setTag(key, e.target.value)} placeholder={placeholder} />
+              <input
+                className="form-input"
+                value={form.tags[key]}
+                onChange={(e) => setTag(key, e.target.value)}
+                placeholder={placeholder}
+              />
             </div>
           ))}
           <div className="form-field">
             <label className="form-label">注意文 (任意)</label>
-            <textarea className="form-textarea" rows={2} value={form.warning} onChange={(e) => set('warning', e.target.value)} />
+            <textarea
+              className="form-textarea"
+              rows={2}
+              value={form.warning}
+              onChange={(e) => set('warning', e.target.value)}
+            />
           </div>
-          <button type="submit" className="btn-save" style={{ marginTop: 4 }}>追加する</button>
+          <button type="submit" className="btn-save" style={{ marginTop: 4 }}>
+            追加する
+          </button>
         </form>
       </div>
     </div>
   );
 }
 
-// ── Main admin screen ────────────────────────────────────
-
-function AdminScreen({ initialConfig, password, onLogout, showToast }) {
+/* ── Admin Screen ── */
+function AdminScreen({
+  initialConfig,
+  password,
+  onLogout,
+  showToast,
+}: {
+  initialConfig: GalleryConfig;
+  password: string;
+  onLogout: () => void;
+  showToast: (msg: string, type?: string) => void;
+}) {
   const [config, setConfigState] = useState(initialConfig);
   const configRef = useRef(initialConfig);
   const [isDirty, setIsDirty] = useState(false);
   const [saving, setSaving] = useState(false);
   const [showAddForm, setShowAddForm] = useState(false);
 
-  // configRef를 항상 최신 config와 동기화
-  // setState side-effect 없이 최신 상태를 동기적으로 읽기 위함
-  function setConfig(next) {
+  function setConfig(next: GalleryConfig) {
     configRef.current = next;
     setConfigState(next);
   }
 
-  // Warn before leaving with unsaved changes
   useEffect(() => {
-    const handler = (e) => {
+    const handler = (e: BeforeUnloadEvent) => {
       if (isDirty) e.preventDefault();
     };
     window.addEventListener('beforeunload', handler);
     return () => window.removeEventListener('beforeunload', handler);
   }, [isDirty]);
 
-  async function saveConfig(cfg) {
+  async function saveConfig(cfg: GalleryConfig) {
     setSaving(true);
     try {
       const res = await fetch('/api/config-write', {
@@ -539,19 +636,18 @@ function AdminScreen({ initialConfig, password, onLogout, showToast }) {
       showToast('保存しました');
       setIsDirty(false);
     } catch (e) {
-      showToast(`エラー: ${e.message}`, 'error');
+      showToast(`エラー: ${(e as Error).message}`, 'error');
     } finally {
       setSaving(false);
     }
   }
 
-  // Upload: add filenames to photos, save once
-  async function handleUpload(filmId, filenames) {
+  async function handleUpload(filmId: string, filenames: string[]) {
     const list = Array.isArray(filenames) ? filenames : [filenames];
-    const next = {
+    const next: GalleryConfig = {
       ...configRef.current,
       films: configRef.current.films.map((f) =>
-        f.id === filmId ? { ...f, photos: [...f.photos, ...list] } : f
+        f.id === filmId ? { ...f, photos: [...f.photos, ...list] } : f,
       ),
     };
     setConfig(next);
@@ -560,22 +656,19 @@ function AdminScreen({ initialConfig, password, onLogout, showToast }) {
     await saveConfig(next);
   }
 
-  // Reorder: update photos array order, immediately save config
-  async function handleReorder(filmId, newPhotos) {
-    const next = {
+  async function handleReorder(filmId: string, newPhotos: string[]) {
+    const next: GalleryConfig = {
       ...configRef.current,
       films: configRef.current.films.map((f) =>
-        f.id === filmId ? { ...f, photos: newPhotos } : f
+        f.id === filmId ? { ...f, photos: newPhotos } : f,
       ),
     };
     setConfig(next);
     await saveConfig(next);
   }
 
-  // Delete photo: GitHub 파일 삭제 + config 업데이트
-  async function handleDelete(filmId, filename) {
+  async function handleDelete(filmId: string, filename: string) {
     if (!confirm(`「${filename}」を削除しますか？`)) return;
-
     try {
       const delRes = await fetch('/api/delete', {
         method: 'POST',
@@ -588,14 +681,13 @@ function AdminScreen({ initialConfig, password, onLogout, showToast }) {
         return;
       }
     } catch (e) {
-      showToast(`削除エラー: ${e.message}`, 'error');
+      showToast(`削除エラー: ${(e as Error).message}`, 'error');
       return;
     }
-
-    const next = {
+    const next: GalleryConfig = {
       ...configRef.current,
       films: configRef.current.films.map((f) =>
-        f.id === filmId ? { ...f, photos: f.photos.filter((p) => p !== filename) } : f
+        f.id === filmId ? { ...f, photos: f.photos.filter((p) => p !== filename) } : f,
       ),
     };
     setConfig(next);
@@ -603,33 +695,33 @@ function AdminScreen({ initialConfig, password, onLogout, showToast }) {
     await saveConfig(next);
   }
 
-  // Settings change: mark dirty (explicit save required)
-  function handleSettingsChange(filmId, field, value) {
-    const next = {
+  function handleSettingsChange(filmId: string, field: keyof Film, value: unknown) {
+    const next: GalleryConfig = {
       ...configRef.current,
       films: configRef.current.films.map((f) =>
-        f.id === filmId ? { ...f, [field]: value } : f
+        f.id === filmId ? { ...f, [field]: value } : f,
       ),
     };
     setConfig(next);
     setIsDirty(true);
   }
 
-  // Film add
-  async function handleFilmAdd(filmData) {
+  async function handleFilmAdd(filmData: Film) {
     if (configRef.current.films.some((f) => f.id === filmData.id)) {
       alert(`ID「${filmData.id}」はすでに使用されています`);
       return;
     }
-    const next = { ...configRef.current, films: [...configRef.current.films, filmData] };
+    const next: GalleryConfig = {
+      ...configRef.current,
+      films: [...configRef.current.films, filmData],
+    };
     setConfig(next);
     setShowAddForm(false);
     showToast(`${filmData.name_jp} を追加しました`);
     await saveConfig(next);
   }
 
-  // Film delete (사진이 없을 때만 허용)
-  async function handleFilmDelete(filmId) {
+  async function handleFilmDelete(filmId: string) {
     const film = configRef.current.films.find((f) => f.id === filmId);
     if (!film) return;
     if (film.photos.length > 0) {
@@ -637,13 +729,15 @@ function AdminScreen({ initialConfig, password, onLogout, showToast }) {
       return;
     }
     if (!confirm(`「${film.name_jp}」を削除しますか？この操作は取り消せません。`)) return;
-    const next = { ...configRef.current, films: configRef.current.films.filter((f) => f.id !== filmId) };
+    const next: GalleryConfig = {
+      ...configRef.current,
+      films: configRef.current.films.filter((f) => f.id !== filmId),
+    };
     setConfig(next);
     showToast(`${film.name_jp} を削除しました`);
     await saveConfig(next);
   }
 
-  // Group films by price for display
   const groups = [
     { price: 0, label: '追加料金なし', films: config.films.filter((f) => f.price_extra === 0) },
     { price: 5000, label: '₩5,000', films: config.films.filter((f) => f.price_extra === 5000) },
@@ -652,10 +746,22 @@ function AdminScreen({ initialConfig, password, onLogout, showToast }) {
 
   return (
     <>
-      <div className="admin-header" style={{ position: 'sticky', top: 0, zIndex: 100 }}>
-        <div className="admin-wrap" style={{ padding: '0 16px', maxWidth: 700, margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' }}>
+      <div className="admin-header">
+        <div
+          style={{
+            padding: '0',
+            maxWidth: 700,
+            margin: '0 auto',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            width: '100%',
+          }}
+        >
           <span className="admin-header-title">管理画面</span>
-          <button className="btn-logout" onClick={onLogout}>ログアウト</button>
+          <button className="btn-logout" onClick={onLogout}>
+            ログアウト
+          </button>
         </div>
       </div>
 
@@ -676,7 +782,7 @@ function AdminScreen({ initialConfig, password, onLogout, showToast }) {
                 />
               ))}
             </div>
-          )
+          ),
         )}
 
         <button className="btn-add-film" onClick={() => setShowAddForm(true)}>
@@ -690,20 +796,25 @@ function AdminScreen({ initialConfig, password, onLogout, showToast }) {
         )}
       </div>
 
-      {showAddForm && <FilmAddForm onAdd={handleFilmAdd} onClose={() => setShowAddForm(false)} />}
+      {showAddForm && (
+        <FilmAddForm onAdd={handleFilmAdd} onClose={() => setShowAddForm(false)} />
+      )}
     </>
   );
 }
 
-// ── App root ─────────────────────────────────────────────
-
-function App() {
-  const [password, setPassword] = useState(getPassword);
-  const [config, setConfig] = useState(null);
-  const [loadError, setLoadError] = useState(null);
+/* ── App Root ── */
+export default function AdminApp() {
+  const [password, setPassword] = useState('');
+  const [config, setConfig] = useState<GalleryConfig | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const { showToast, ToastContainer } = useToast();
 
-  // Load config when authenticated
+  useEffect(() => {
+    const saved = getPassword();
+    if (saved) setPassword(saved);
+  }, []);
+
   useEffect(() => {
     if (!password) return;
     fetch('/api/config-read')
@@ -712,14 +823,14 @@ function App() {
         return r.json();
       })
       .then(setConfig)
-      .catch((e) => {
+      .catch((e: Error) => {
         setLoadError(e.message);
         setPassword('');
         sessionStorage.removeItem('adminPassword');
       });
   }, [password]);
 
-  function handleLogin(pw) {
+  function handleLogin(pw: string) {
     setPassword(pw);
   }
 
@@ -735,6 +846,14 @@ function App() {
         <LoginScreen onLogin={handleLogin} />
         <ToastContainer />
       </>
+    );
+  }
+
+  if (loadError) {
+    return (
+      <div className="loading-wrap">
+        エラー: {loadError}
+      </div>
     );
   }
 
@@ -759,6 +878,3 @@ function App() {
     </>
   );
 }
-
-ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-
